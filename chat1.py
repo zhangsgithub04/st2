@@ -1,55 +1,44 @@
 import os
 import streamlit as st
-from google import genai
 
-# --- Load API key from Streamlit secrets or environment ---
-API_KEY = None
-if "GEMINI_API_KEY" in st.secrets:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-else:
-    API_KEY = os.getenv("GEMINI_API_KEY")
+# 1) Install/import Google's Generative AI SDK
+# pip install google-generativeai
+
+import google.generativeai as genai
+
+st.set_page_config(page_title="Gemini + Streamlit Quickstart", page_icon="✨")
+
+# --- API key handling ---
+# Prefer Streamlit Secrets, fall back to env var
+API_KEY = st.secrets.get("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", ""))
+
+st.title("✨ Gemini Text Generator (Streamlit)")
+st.caption("Provide a prompt, get a completion using Gemini.")
 
 if not API_KEY:
-    st.error("Missing GEMINI_API_KEY. Add it to .streamlit/secrets.toml or set it as an environment variable.")
+    st.error(
+        "No API key found. Add GEMINI_API_KEY in `.streamlit/secrets.toml` or set env var GEMINI_API_KEY."
+    )
     st.stop()
 
-# --- Create Gemini client (Gemini Developer API / AI Studio key) ---
-client = genai.Client(api_key=API_KEY)
+# Configure SDK
+genai.configure(api_key=API_KEY)
 
-# Model id examples appear in Google docs; pick one your project has access to.
-# In current docs, generate_content is called via client.models.generate_content(...)
-MODEL_ID = "gemini-3-flash-preview"
+# Choose a model (e.g., gemini-1.5-flash for speed, or gemini-1.5-pro for higher quality)
+MODEL_NAME = "gemini-1.5-flash"
 
-st.set_page_config(page_title="Gemini + Streamlit", layout="centered")
-st.title("🤖 Gemini Chat (AI Studio API key)")
+prompt = st.text_area("Your prompt", "Explain transformers like I’m five.")
+temperature = st.slider("Temperature", 0.0, 1.0, 0.7, 0.1)
 
-# --- Session state for chat history ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-# Render chat history
-for m in st.session_state.messages:
-    with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-
-# Chat input
-prompt = st.chat_input("Ask something…")
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Thinking…"):
-            try:
-                response = client.models.generate_content(
-                    model=MODEL_ID,
-                    contents=prompt,
-                )
-                answer = response.text
-            except Exception as e:
-                answer = f"Error calling Gemini API: {e}"
-
-            st.markdown(answer)
-
-    st.session_state.messages.append({"role": "assistant", "content": answer})
+if st.button("Generate"):
+    with st.spinner("Thinking..."):
+        model = genai.GenerativeModel(model_name=MODEL_NAME)
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.types.GenerationConfig(
+                temperature=temperature,
+                max_output_tokens=512,
+            ),
+        )
+    st.subheader("Response")
+    st.write(response.text)
